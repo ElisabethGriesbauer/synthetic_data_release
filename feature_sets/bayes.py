@@ -27,7 +27,7 @@ class CorrelationsFeatureSet(FeatureSet):
         for cdict in metadata['columns']:
             attr_name = cdict['name']
             dtype = cdict['type']
-
+            
             if dtype == FLOAT or dtype == INTEGER:
                 if attr_name not in quids:
                     self.num_attributes.append(attr_name)
@@ -66,7 +66,7 @@ class CorrelationsFeatureSet(FeatureSet):
 
         mask = zeros_like(corr).astype(bool)
         mask[triu_indices_from(mask, k=1)] = True
-
+        
         if flatten:
             features = corr[mask].flatten()
         else:

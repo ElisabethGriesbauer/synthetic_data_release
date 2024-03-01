@@ -15,6 +15,10 @@ from generative_models.generative_model import GenerativeModel
 from utils.constants import *
 from utils.logging import LOGGER
 
+import pyvinecopulib as pv
+import numpy as np
+import scipy.stats
+import synthia as syn
 
 class IndependentHistogram(GenerativeModel):
 
@@ -100,7 +104,7 @@ class BayesianNet(GenerativeModel):
         self.datatype = DataFrame
 
         self.bayesian_network = None
-        self.conditional_probabilities = None
+        pythononditional_probabilities = None
         self.DataDescriber = None
         self.trained = False
 
@@ -304,7 +308,7 @@ class PrivBayes(BayesianNet):
     """"
     A differentially private BayesianNet model using GreedyBayes
     """
-    def __init__(self, metadata, histogram_bins=10, degree=1, epsilon=.1, infer_ranges=False, multiprocess=True, seed=None):
+    def __init__(self, metadata, histogram_bins=10, degree=1, epsilon=.1, infer_ranges=True, multiprocess=True, seed=None): # infer_ranges=False
         super().__init__(metadata=metadata, histogram_bins=histogram_bins, degree=degree, infer_ranges=infer_ranges, multiprocess=multiprocess, seed=seed)
 
         self.epsilon = float(epsilon)
@@ -429,7 +433,363 @@ class DataDescriber(object):
 
         return attr_dict
 
+    
+    
+    
+class Rvine(GenerativeModel):
+    
+    def __init__(self, metadata, vine_topology = "Rvine", pc_estimation = "parametric", trunc_lvl = 1000000, histogram_bins = 45, infer_ranges=False, multiprocess=True, seed=None): #var_types = {1: 'cont', 2: 'cont', 3: 'cont', 4: 'cont', 5: 'cont', 6: 'cont', 7: 'cat'}
+            self.metadata = self._read_meta(metadata)
+            self.histogram_bins = histogram_bins
+            self.pc_estimation = pc_estimation
+            self.trunc_lvl = trunc_lvl
+            self.vine_topology = vine_topology
+            self.var_types = ['c' if metadata['columns'][i]['type'] == 'Float' else 'd' for i in range(len(metadata['columns']))] # ["c" for i in metadata['continuous_columns']] +  ['d' for j in metadata['categorical_columns']] # var_types
+            self.datatype = DataFrame
+            self.__name__ = 'Rvine'
+            self.DataDescriber = None
+            self.trained = False
 
+            self.multiprocess = bool(multiprocess)
+            self.infer_ranges = bool(infer_ranges)
+        
+    def fit(self, data):
+
+        if self.trained:
+            self.trained = False
+            self.DataDescriber = None
+
+        self.DataDescriber = DataDescriber(self.metadata, self.histogram_bins, self.infer_ranges)
+        self.DataDescriber.describe(data)
+
+        # needs to be like this; DO SANITY CHECKS!
+        # data = DataFrame(columns=self.DataDescriber.attr_names)
+        data = DataFrame(data)
+        
+        self.real_data = data
+        n, d = data.shape
+        
+        # transform data to unit cube
+        u_data = []
+        for i in range(d):
+            if self.var_types[i] == "c":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i]))
+            else:
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "max"))
+                
+        for i in range(d):
+            if self.var_types[i] == "d":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "min") - 1) 
+            else:
+                pass
+        
+        u_data = np.array(u_data).transpose() * 1/(n+1)     
+        
+        # setting controls        
+        if self.pc_estimation == "parametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.parametric, trunc_lvl = self.trunc_lvl, parametric_method = 'mle', selection_criterion = 'aic')
+        elif self.pc_estimation == "nonparametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.nonparametric, nonparametric_method = "linear", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        else:
+            ctrl = pv.FitControlsVinecop(nonparametric_method = "linear", parametric_method = "mle", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        
+        self.vine = pv.Vinecop(data = u_data, var_types = self.var_types, controls = ctrl)
+        # print(self.vine.str())
+    
+    
+    def generate_samples(self, nsamples):
+        
+            u_synth = pv.Vinecop.simulate(self.vine, n = nsamples)
+            
+            n, d = u_synth.shape
+            
+            synth_data = []
+            for i in range(d):
+                if self.var_types[i] == "c":
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'median_unbiased')
+                    synth_data.append(s)
+                else:
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'closest_observation')
+                    synth_data.append(s)
+                    
+            synth_data = DataFrame(synth_data).transpose()
+
+            synth_data.columns = list(self.real_data) 
+
+            convert_dict = {col: object if dtype == 'd' else float for col, dtype in zip(synth_data.columns, self.var_types)}
+            synth_data = synth_data.astype(convert_dict)
+
+            return synth_data        
+    
+    def _read_meta(self, metadata):
+        """ Read metadata from metadata file."""
+        metadict = {}
+
+        for cdict in metadata['columns']:
+            col = cdict['name']
+            coltype = cdict['type']
+
+            if coltype == FLOAT or coltype == INTEGER:
+                metadict[col] = {
+                    'type': coltype,
+                    'min': cdict['min'],
+                    'max': cdict['max']
+                }
+
+            elif coltype == CATEGORICAL or coltype == ORDINAL:
+                metadict[col] = {
+                    'type': coltype,
+                    'categories': cdict['i2s'],
+                    'size': len(cdict['i2s'])
+                }
+
+            else:
+                raise ValueError(f'Unknown data type {coltype} for attribute {col}')
+
+        return metadict
+
+
+
+
+
+class Cvine(GenerativeModel):
+    
+    def __init__(self, metadata, vine_topology = "Cvine", pc_estimation = "parametric", trunc_lvl = 1000000, histogram_bins = 45, infer_ranges=False, multiprocess=True, seed=None): #var_types = ['c', 'c', 'c', 'c', 'c', 'c', 'd'],
+        self.metadata = self._read_meta(metadata)
+        self.histogram_bins = histogram_bins
+        self.pc_estimation = pc_estimation
+        self.trunc_lvl = trunc_lvl
+        self.vine_topology = vine_topology
+        self.var_types = ['c' if metadata['columns'][i]['type'] == 'Float' else 'd' for i in range(len(metadata['columns']))] # ["c" for i in metadata['continuous_columns']] +  ['d' for j in metadata['categorical_columns']] # var_types
+        self.datatype = DataFrame
+        self.__name__ = 'Cvine'
+        self.DataDescriber = None
+        self.trained = False
+
+        self.multiprocess = bool(multiprocess)
+        self.infer_ranges = bool(infer_ranges)
+        
+    def fit(self, data):
+
+        if self.trained:
+            self.trained = False
+            self.DataDescriber = None
+
+        self.DataDescriber = DataDescriber(self.metadata, self.histogram_bins, self.infer_ranges)
+        self.DataDescriber.describe(data)
+
+        # needs to be like this; DO SANITY CHECKS!
+        # data = DataFrame(columns=self.DataDescriber.attr_names)
+        data = DataFrame(data)
+        
+        self.real_data = data
+        n, d = data.shape
+        
+        # transform data to unit cube
+        u_data = []
+        for i in range(d):
+            if self.var_types[i] == "c":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i]))
+            else:
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "max"))
+                
+        for i in range(d):
+            if self.var_types[i] == "d":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "min") - 1) 
+            else:
+                pass
+        
+        u_data = np.array(u_data).transpose() * 1/(n+1)
+        
+        # set vine tree structure
+        structure = pv.CVineStructure(order = range(1,d+1,1), trunc_lvl = self.trunc_lvl)       
+        
+        # setting controls        
+        if self.pc_estimation == "parametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.parametric, trunc_lvl = self.trunc_lvl, parametric_method = 'mle', selection_criterion = 'aic')
+        elif self.pc_estimation == "nonparametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.nonparametric, nonparametric_method = "linear", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        else:
+            ctrl = pv.FitControlsVinecop(nonparametric_method = "linear", parametric_method = "mle", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        
+        self.vine = pv.Vinecop(u_data, structure, self.var_types, controls = ctrl)
+        # print(self.vine.str())
+    
+    
+    def generate_samples(self, nsamples):
+        
+            u_synth = pv.Vinecop.simulate(self.vine, n = nsamples)
+            
+            n, d = u_synth.shape
+            
+            synth_data = []
+            for i in range(d):
+                if self.var_types[i] == "c":
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'median_unbiased')
+                    synth_data.append(s)
+                else:
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'closest_observation')
+                    synth_data.append(s)
+                    
+            synth_data = DataFrame(synth_data).transpose()
+
+            synth_data.columns = list(self.real_data) 
+
+            convert_dict = {col: object if dtype == 'd' else float for col, dtype in zip(synth_data.columns, self.var_types)}
+            synth_data = synth_data.astype(convert_dict)
+
+            return synth_data     
+    
+    def _read_meta(self, metadata):
+        """ Read metadata from metadata file."""
+        metadict = {}
+
+        for cdict in metadata['columns']:
+            col = cdict['name']
+            coltype = cdict['type']
+
+            if coltype == FLOAT or coltype == INTEGER:
+                metadict[col] = {
+                    'type': coltype,
+                    'min': cdict['min'],
+                    'max': cdict['max']
+                }
+
+            elif coltype == CATEGORICAL or coltype == ORDINAL:
+                metadict[col] = {
+                    'type': coltype,
+                    'categories': cdict['i2s'],
+                    'size': len(cdict['i2s'])
+                }
+
+            else:
+                raise ValueError(f'Unknown data type {coltype} for attribute {col}')
+
+        return metadict
+
+
+
+
+
+
+class Rvinestar1(GenerativeModel):
+    
+    def __init__(self, metadata, vine_topology = "star", pc_estimation = "parametric", trunc_lvl = 1000000, histogram_bins = 45, infer_ranges=False, multiprocess=True, seed=None): #var_types = ['c', 'c', 'c', 'c', 'c', 'c', 'd'], 
+        self.metadata = self._read_meta(metadata)
+        self.histogram_bins = histogram_bins
+        self.pc_estimation = pc_estimation
+        self.trunc_lvl = trunc_lvl
+        self.vine_topology = vine_topology
+        self.var_types = ['c' if metadata['columns'][i]['type'] == 'Float' else 'd' for i in range(len(metadata['columns']))] # ["c" for i in metadata['continuous_columns']] +  ['d' for j in metadata['categorical_columns']] # var_types
+        self.datatype = DataFrame
+        self.__name__ = 'Rvine star 1'
+        self.DataDescriber = None
+        self.trained = False
+
+        self.multiprocess = bool(multiprocess)
+        self.infer_ranges = bool(infer_ranges)
+        
+    def fit(self, data):
+
+        if self.trained:
+            self.trained = False
+            self.DataDescriber = None
+
+        self.DataDescriber = DataDescriber(self.metadata, self.histogram_bins, self.infer_ranges)
+        self.DataDescriber.describe(data)
+
+        # needs to be like this; DO SANITY CHECKS!
+        # data = DataFrame(columns=self.DataDescriber.attr_names)
+        data = DataFrame(data)
+        
+        self.real_data = data
+        n, d = data.shape
+        
+        # transform data to unit cube
+        u_data = []
+        for i in range(d):
+            if self.var_types[i] == "c":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i]))
+            else:
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "max"))
+                
+        for i in range(d):
+            if self.var_types[i] == "d":
+                u_data.append(scipy.stats.rankdata(data.iloc[:,i], method = "min") - 1) 
+            else:
+                pass
+        
+        u_data = np.array(u_data).transpose() * 1/(n+1)
+        
+        # set vine tree structure
+        mat = np.zeros((d,d))
+        np.fill_diagonal(np.flipud(mat), range(1,d+1,1))
+        mat[0,:] = np.repeat(d,d)
+        structure = pv.RVineStructure(mat)
+        
+        
+        # setting controls        
+        if self.pc_estimation == "parametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.parametric, trunc_lvl = self.trunc_lvl, parametric_method = 'mle', selection_criterion = 'aic')
+        elif self.pc_estimation == "nonparametric":
+            ctrl = pv.FitControlsVinecop(family_set = pv.nonparametric, nonparametric_method = "linear", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        else:
+            ctrl = pv.FitControlsVinecop(nonparametric_method = "linear", parametric_method = "mle", trunc_lvl = self.trunc_lvl, selection_criterion = 'aic')
+        
+        self.vine = pv.Vinecop(u_data, structure, self.var_types, controls = ctrl)
+        # print(self.vine.str())
+    
+    
+    def generate_samples(self, nsamples):
+        
+            u_synth = pv.Vinecop.simulate(self.vine, n = nsamples)
+            
+            n, d = u_synth.shape
+            
+            synth_data = []
+            for i in range(d):
+                if self.var_types[i] == "c":
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'median_unbiased')
+                    synth_data.append(s)
+                else:
+                    s = np.quantile(a = self.real_data.iloc[:,i], q = u_synth[:,i], method = 'closest_observation')
+                    synth_data.append(s)
+                    
+            synth_data = DataFrame(synth_data).transpose()
+
+            synth_data.columns = list(self.real_data) 
+
+            convert_dict = {col: object if dtype == 'd' else float for col, dtype in zip(synth_data.columns, self.var_types)}
+            synth_data = synth_data.astype(convert_dict)
+
+            return synth_data     
+    
+    def _read_meta(self, metadata):
+        """ Read metadata from metadata file."""
+        metadict = {}
+
+        for cdict in metadata['columns']:
+            col = cdict['name']
+            coltype = cdict['type']
+
+            if coltype == FLOAT or coltype == INTEGER:
+                metadict[col] = {
+                    'type': coltype,
+                    'min': cdict['min'],
+                    'max': cdict['max']
+                }
+
+            elif coltype == CATEGORICAL or coltype == ORDINAL:
+                metadict[col] = {
+                    'type': coltype,
+                    'categories': cdict['i2s'],
+                    'size': len(cdict['i2s'])
+                }
+
+            else:
+                raise ValueError(f'Unknown data type {coltype} for attribute {col}')
+
+        return metadict
 
 
 

@@ -42,7 +42,7 @@ class MIAttackClassifier(PrivacyAttack):
             synA = stack([self.FeatureSet.extract(s) for s in synA])
         else:
             synA = stack([self._df_to_array(s).flatten() for s in synA])
-
+        
         if not isinstance(labels, ndarray):
             labels = array(labels)
 
@@ -229,12 +229,16 @@ class MIAttackClassifierMLP(MIAttackClassifier):
         super().__init__(MLPClassifier((200,), solver='lbfgs'), metadata=metadata, FeatureSet=FeatureSet, quids=quids)
 
 
+
+
+## this gives in total numModels * numCopies synthetic data sets of size sizeSyn of label LABEL_IN (with target) and numModels * numCopies synthetic data sets of size sizeSyn of label LABEL_OUT (withOUT target)
 def generate_mia_shadow_data(GenModel, target, rawA, sizeRaw, sizeSyn, numModels, numCopies):
     assert isinstance(rawA, GenModel.datatype), f"GM expects datatype {GenModel.datatype} but got {type(rawA)}"
     assert isinstance(target, type(rawA)), f"Mismatch of datatypes between target record and raw data"
 
     kf = ShuffleSplit(n_splits=numModels, train_size=sizeRaw)
-
+    
+    
     if GenModel.multiprocess:
 
         manager = mp.Manager()
@@ -258,6 +262,10 @@ def generate_mia_shadow_data(GenModel, target, rawA, sizeRaw, sizeSyn, numModels
 
     return synA, labelsA
 
+
+
+
+## need to specify vines as generative model here myself !!!
 
 def worker_train_shadow(rawA, train_index, GenModel, target, sizeSyn, numCopies, synA, labelsA):
     # Fit GM to data without target's data
@@ -291,6 +299,7 @@ def worker_train_shadow(rawA, train_index, GenModel, target, sizeSyn, numCopies,
 
     synA.extend(syn)
     labelsA.extend(labels)
+
 
 
 def generate_mia_anon_data(Sanitiser, target, rawA, sizeRaw, numSamples):

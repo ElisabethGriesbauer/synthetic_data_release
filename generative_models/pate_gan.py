@@ -5,15 +5,18 @@ by J. Yoon, J. Jordon, M. van der Schaar, published in International Conference 
 Adapted from: https://bitbucket.org/mvdschaar/mlforhealthlabpub/src/82d7f91d46db54d256ff4fc920d513499ddd2ab8/alg/pategan/
 """
 
-import tensorflow.compat.v1 as tf
+import tensorflow.compat.v1 as tf #can import it in python so do not know why this is MissingImports
 tf.disable_v2_behavior()
 
 import numpy as np
-from pandas import DataFrame
+from pandas import DataFrame, Series
 
 from generative_models.generative_model import GenerativeModel
 from utils.logging import LOGGER
 from utils.constants import *
+
+import copy
+from pandas import concat
 
 
 ZERO_TOL = 1e-8
@@ -23,9 +26,11 @@ class PATEGAN(GenerativeModel):
     """ A generative adversarial network trained under the PATE framework to achieve differential privacy """
 
     def __init__(self, metadata,
-                 eps=1, delta=1e-5, infer_ranges=False,
-                 num_teachers=10, n_iters=100, batch_size=128,
-                 learning_rate=1e-4, multiprocess=False):
+                 eps=1, delta=1e-5, infer_ranges=True, 
+                 # eps=1, delta=1e-5, infer_ranges=False,
+                 # num_teachers=10, n_iters=100, batch_size=128,
+                 num_teachers=1000, n_iters=100, batch_size=64,
+                 learning_rate=1e-4, multiprocess=True):
         """
         :param metadata: dict: Attribute metadata describing the data domain of the synthetic target data
         :param eps: float: Privacy parameter
@@ -36,6 +41,7 @@ class PATEGAN(GenerativeModel):
         """
         # Data description
         self.metadata, self.attribute_list = self.read_meta(metadata)
+        self.metadataa = metadata
         self.datatype = DataFrame
         self.nfeatures = self.get_num_features()
 
@@ -51,6 +57,10 @@ class PATEGAN(GenerativeModel):
         self.learning_rate = learning_rate
         self.z_dim = int(self.nfeatures / 4)
         self.h_dim = int(self.nfeatures)
+
+        # Losses for checking convergence
+        self.discriminatorLoss = []
+        self.generatorLoss = []
 
         # Configure device
         device_name = tf.test.gpu_device_name()
@@ -150,11 +160,16 @@ class PATEGAN(GenerativeModel):
 
         self.theta_D = [self.D_W1, self.D_W2, self.D_W3, self.D_b1, self.D_b2, self.D_b3]
 
-    def fit(self, data):
+    def fit(self, data, *args):
         """Fit a generative model of the training data distribution.
         :param data: DataFrame: Training set
         """
         assert isinstance(data, self.datatype), f'{self.__class__.__name__} expects {self.datatype} as input data but got {type(data)}'
+
+        if len(args) > 0:
+            # Merge the additional data frames using pandas.concat or another appropriate method
+            data['Y'] = DataFrame(args).apply(Series).transpose()
+            
 
         # Clean up
         if self.trained:
@@ -186,7 +201,7 @@ class PATEGAN(GenerativeModel):
             grad_norm = tf.sqrt(tf.reduce_sum(grad ** 2 + ZERO_TOL, axis=1))
             grad_pen = self.num_teachers * tf.reduce_mean((grad_norm - 1) ** 2)
 
-            # Loss function
+            # Loss function (teachers discriminators?)
             discriminator_loss = tf.reduce_mean((1 - self.M) * D_entire) - tf.reduce_mean(self.M * D_entire) + grad_pen
             generator_loss = -tf.reduce_mean(D_fake)
 
@@ -198,9 +213,12 @@ class PATEGAN(GenerativeModel):
             self.sess.run(tf.global_variables_initializer())
 
             # Training iterations
+            lstDis = []
+            lstGen = []
             for _ in range(self.n_iters):
                 # TODO: Move dataset splitting here
                 # For fixed generator weights run teacher training
+                lst = []
                 for _ in range(self.num_teachers):
                     # Sample latent vars
                     latent_batch = self._sample_latent_z(self.batch_size, self.z_dim)
@@ -224,12 +242,21 @@ class PATEGAN(GenerativeModel):
 
                     _, discriminator_loss_iter = self.sess.run([discriminator_solver, discriminator_loss], feed_dict={self.X: features_train_batch, self.Z: latent_batch, self.M: labels_batch})
 
+                    lst.append(discriminator_loss_iter)
+
+                lstDis.append(lst)
                 # Update generator weights
                 latent_batch = self._sample_latent_z(self.batch_size, self.z_dim)
 
                 _, generator_loss_iter = self.sess.run([generator_solver, generator_loss], feed_dict={self.Z: latent_batch})
+                lstGen.append(generator_loss_iter)
 
+
+        self.discriminatorLoss = DataFrame(lstDis)
+        self.generatorLoss = DataFrame(lstGen)
         self.trained = True
+        
+        return self
 
     def generate_samples(self, nsamples):
         """""
@@ -361,3 +388,105 @@ class PATEGAN(GenerativeModel):
         col_data = np.array([categories[i] for i in cat_idx])
 
         return col_data
+    
+    def set_params(self, **params):
+        for param, value in params.items():
+            if hasattr(self, param):
+                setattr(self, param, value)
+            else:
+                raise ValueError(f"Invalid parameter: {param}")
+            
+    def transform(self, X):
+        # You might need to adjust this logic based on your specific generative model
+        return self.generate_samples(nsamples=len(X))
+    
+
+
+    # def __deepcopy__(self, memodict={}):
+    #     cpyobj = type(self)(self.metadataa, self.num_teachers) # shallow copy of whole object 
+    #     cpyobj.deep_cp_attr = copy.deepcopy(self, memodict) # deepcopy required attr
+
+    #     return cpyobj
+
+    # def __deepcopy__(self, memo):
+    #     # Check if the object is already in memo
+    #     if id(self) in memo:
+    #         # If it is, return the memoized copy
+    #         return memo[id(self)]
+        
+    #     # Ensure metadata is available before copying
+    #     if hasattr(self, 'metadataa'):
+    #         new_instance = self.__class__(copy.deepcopy(self.metadataa))  # Use deepcopy for metadata
+    #     else:
+    #         # If metadata is not available, create a new instance without it
+    #         new_instance = self.__class__()
+    #         print('No metadata!')
+        
+    #     assert hasattr(self, 'transform'), "new PateGan instance does does not have the transform attribute!"
+    
+    #     # Copy other attributes
+    #     # new_instance.metadataa = copy.deepcopy(self.metadataa)  # Use deepcopy for metadataa
+
+    #     # Memoize the new instance to avoid recursive loops
+    #     memo[id(self)] = new_instance
+
+    #     return new_instance
+    def get_model_state(self):
+        state = {
+            'metadataa': self.metadataa,
+            'num_teachers': self.num_teachers,
+            'epsilon': self.epsilon,
+            'delta': self.delta,
+            # Add other attributes as needed
+        }
+        return state
+
+    def set_model_state(self, state):
+        self.metadataa = state['metadataa']
+        self.num_teachers = state['num_teachers']
+        self.epsilon = state['epsilon']
+        self.delta = state['delta']
+        # Set other attributes as needed
+
+    def save_model_variables(self, session):
+        # Save TensorFlow variables to a dictionary
+        variables_dict = {}
+        for var in tf.global_variables():
+            variables_dict[var.name] = session.run(var)
+        return variables_dict
+
+    def restore_model_variables(self, session, variables_dict):
+        # Restore TensorFlow variables from a dictionary
+        for var_name, value in variables_dict.items():
+            var = tf.get_default_graph().get_tensor_by_name(var_name)
+            session.run(tf.assign(var, value))
+
+    # ... (other methods and attributes)
+
+    def __deepcopy__(self, memo):
+        # Check if the object is already in memo
+        if id(self) in memo:
+            # If it is, return the memoized copy
+            return memo[id(self)]
+
+        # Get the model state and TensorFlow variables
+        model_state = self.get_model_state()
+        with tf.Session() as session:
+            session.run(tf.global_variables_initializer())
+            model_variables = self.save_model_variables(session)
+
+        # Create a new instance
+        new_instance = self.__class__(metadata=model_state['metadataa'])
+
+        # Set the model state for the new instance
+        new_instance.set_model_state(model_state)
+
+        # Restore TensorFlow variables for the new instance
+        with tf.Session() as session:
+            session.run(tf.global_variables_initializer())
+            new_instance.restore_model_variables(session, model_variables)
+
+        # Memoize the new instance to avoid recursive loops
+        memo[id(self)] = new_instance
+
+        return new_instance

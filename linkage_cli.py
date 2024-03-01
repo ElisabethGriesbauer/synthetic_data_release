@@ -3,6 +3,8 @@ Command-line interface for running privacy evaluation with respect to the risk o
 """
 
 import json
+# added:
+import pyvinecopulib as pv
 
 from os import mkdir, path
 from numpy.random import choice, seed
@@ -20,11 +22,16 @@ from feature_sets.bayes import CorrelationsFeatureSet
 
 from sanitisation_techniques.sanitiser import SanitiserNHS
 
-from generative_models.ctgan import CTGAN
+# added:
+from generative_models.ctganSDV import CTGAN
+from generative_models.tvae import TVAE
 from generative_models.pate_gan import PATEGAN
 from generative_models.data_synthesiser import (IndependentHistogram,
                                                 BayesianNet,
-                                                PrivBayes)
+                                                PrivBayes, #added:
+                                                Rvine,
+                                                Cvine,
+                                                Rvinestar1)
 
 from attack_models.mia_classifier import (MIAttackClassifierRandomForest,
                                           generate_mia_shadow_data,
@@ -110,6 +117,19 @@ def main():
             elif gm == 'PATEGAN':
                 for params in paramsList:
                     gmList.append(PATEGAN(metadata, *params))
+                    # added:
+            elif gm == 'TVAE':
+                for params in paramsList:
+                    gmList.append(TVAE(metadata, *params))
+            elif gm == 'Rvine':
+                for params in paramsList:
+                    gmList.append(Rvine(metadata, *params))
+            elif gm == 'Rvinestar1':
+                for params in paramsList:
+                    gmList.append(Rvinestar1(metadata, *params))
+            elif gm == 'Cvine':
+                for params in paramsList:
+                    gmList.append(Cvine(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
 
@@ -144,7 +164,7 @@ def main():
 
             # Train attack on shadow data
             for Feature in [NaiveFeatureSet(DataFrame),
-                            HistogramFeatureSet(DataFrame, metadata, nbins=San.histogram_size, quids=San.quids),
+                            # HistogramFeatureSet(DataFrame, metadata, nbins=San.histogram_size, quids=San.quids),
                             CorrelationsFeatureSet(DataFrame, metadata, quids=San.quids),
                             EnsembleFeatureSet(DataFrame, metadata, nbins=San.histogram_size, quasi_id_cols=San.quids)]:
 
@@ -164,11 +184,13 @@ def main():
 
             # Generate shadow model data for training attacks on this target
             synA, labelsSA = generate_mia_shadow_data(GenModel, target, rawA, runconfig['sizeRawT'], runconfig['sizeSynT'], runconfig['nShadows'], runconfig['nSynA'])
-
+            
             # Train attack on shadow data
-            for Feature in [NaiveFeatureSet(GenModel.datatype), HistogramFeatureSet(GenModel.datatype, metadata), CorrelationsFeatureSet(GenModel.datatype, metadata)]:
+            for Feature in [NaiveFeatureSet(GenModel.datatype)]: # , CorrelationsFeatureSet(GenModel.datatype, metadata),  HistogramFeatureSet(GenModel.datatype, metadata) , 
+                # import pdb
+                # pdb.set_trace()
                 Attack  = MIAttackClassifierRandomForest(metadata, Feature)
-                Attack.train(synA, labelsSA)
+                Attack.train(synA, labelsSA)                
                 attacks[tid][GenModel.__name__][f'{Feature.__name__}'] = Attack
 
             # Clean up

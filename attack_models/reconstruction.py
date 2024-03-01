@@ -1,7 +1,8 @@
 from os import path
 from pandas.api.types import CategoricalDtype
-from numpy import mean, concatenate, ones, sqrt, zeros, arange
-from scipy.stats import norm
+from numpy import mean, concatenate, ones, sqrt, zeros, arange, matmul, transpose, append
+from numpy.linalg import inv
+from scipy.stats import norm, nct
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -168,7 +169,7 @@ class AttributeInferenceAttack(PrivacyAttack):
 class LinRegAttack(AttributeInferenceAttack):
     """An AttributeInferenceAttack based on a simple Linear Regression model"""
     def __init__(self, sensitiveAttribute, metadata, quids=None):
-        super().__init__(LinearRegression(fit_intercept=False), sensitiveAttribute, metadata, quids)
+        super().__init__(LinearRegression(fit_intercept=True), sensitiveAttribute, metadata, quids)
 
         self.scaleFactor = None
         self.coefficients = None
@@ -183,35 +184,40 @@ class LinRegAttack(AttributeInferenceAttack):
         features = self._encode_data(data.drop(self.sensitiveAttribute, axis=1))
         labels = data[self.sensitiveAttribute].values
 
-        n, k = features.shape
+        n = features.shape[0]
 
         # Center independent variables for better regression performance
         self.scaleFactor = mean(features, axis=0)
-        featuresScaled = features - self.scaleFactor
-        featuresScaled = concatenate([ones((n, 1)), featuresScaled], axis=1) # append all  ones for inclu intercept in beta vector
-
+        self.regressionDesignMatrix = concatenate([ones((n, 1)), features], axis=1) # append all  ones for inclu intercept in beta vector
         # Get MLE for linear coefficients
-        self.PredictionModel.fit(featuresScaled, labels)
-        self.coefficients = self.PredictionModel.coef_
-        self.sigma = sum((labels - featuresScaled.dot(self.coefficients))**2)/(n-k)
+        self.PredictionModel.fit(features, labels)
+        self.coefficients = append(self.PredictionModel.intercept_, self.PredictionModel.coef_)
 
+        # computing k: no. of non-sensitive features (d-1) + y (1) + intercept (1)
+        k = self.regressionDesignMatrix.shape[1]
+        self.sigma = sum((labels - self.regressionDesignMatrix.dot(self.coefficients))**2)/(n-k)
         LOGGER.debug('Finished training regression model')
         self.trained = True
 
     def _make_guess(self, targetAux):
         targetFeatures = self._encode_data(targetAux)
-        targetFeaturesScaled = targetFeatures - self.scaleFactor
+        targetFeaturesScaled = targetFeatures # - self.scaleFactor
         targetFeaturesScaled = concatenate([ones((len(targetFeaturesScaled), 1)), targetFeatures], axis=1)
-
         guess = targetFeaturesScaled.dot(self.coefficients)[0]
+
+        if guess - self.PredictionModel.predict(targetFeatures) > 1e-3:
+            import pdb
+            pdb.set_trace()
+
+        # assert guess - self.PredictionModel.predict(targetFeatures) < 1e-5, 'sklearn prediction function gives different estimate'
 
         return guess
 
-    def get_likelihood(self, targetAux, targetSensitive, attemptLinkage=False, data=None):
+    def get_likelihood(self, targetAux, targetSensitive, alpha, attemptLinkage=False, data=None):
         assert self.trained, 'Attack must first be trained on some data before can predict sensitive target value'
 
         targetFeatures = self._encode_data(targetAux)
-        targetFeaturesScaled = targetFeatures - self.scaleFactor
+        targetFeaturesScaled = targetFeatures # - self.scaleFactor
         targetFeaturesScaled = concatenate([ones((len(targetFeaturesScaled), 1)), targetFeatures], axis=1)
 
         if attemptLinkage:
@@ -224,17 +230,40 @@ class LinRegAttack(AttributeInferenceAttack):
                     pCorrect = 1.
 
                 else:
-                    pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
-                    pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
+                    # pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
+                    scale = sqrt(self.sigma * (1 + targetFeaturesScaled.dot( inv(matmul(transpose(self.regressionDesignMatrix), self.regressionDesignMatrix).astype('float')) ).dot(transpose(targetFeaturesScaled) )))
+                    pdfLikelihood = nct(loc=targetFeaturesScaled.dot(self.coefficients), scale=scale, nc = 0, df = self.regressionDesignMatrix.shape[0] - self.regressionDesignMatrix.shape[1])
+                    # interval = pdfLikelihood.ppf(q = alpha)
+                    # interval = alpha * targetSensitive
+                    if targetFeaturesScaled.dot(self.coefficients) >= 0:
+                        pCorrect = (pdfLikelihood.cdf( (1 + alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 - alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+                    else:
+                        pCorrect = (pdfLikelihood.cdf( (1 - alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 + alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+                    # Stadler: pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
 
             except:
-                pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
-                pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
+                # pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
+                scale = sqrt(self.sigma * (1 + targetFeaturesScaled.dot( inv(matmul(transpose(self.regressionDesignMatrix), self.regressionDesignMatrix).astype('float')) ).dot(transpose(targetFeaturesScaled) )))
+                pdfLikelihood = nct(loc=targetFeaturesScaled.dot(self.coefficients), scale=scale, nc = 0, df = self.regressionDesignMatrix.shape[0] - self.regressionDesignMatrix.shape[1])
+                # interval = pdfLikelihood.ppf(q = alpha)
+                # interval = alpha * targetSensitive
+                if targetFeaturesScaled.dot(self.coefficients) >= 0:
+                    pCorrect = (pdfLikelihood.cdf( (1 + alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 - alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+                else:
+                    pCorrect = (pdfLikelihood.cdf( (1 - alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 + alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+                # Stadler: pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
         else:
-            pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
-            pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
-
-        return pCorrect
+            # pdfLikelihood = norm(loc=targetFeaturesScaled.dot(self.coefficients), scale=sqrt(self.sigma))
+            scale = sqrt(self.sigma * (1 + targetFeaturesScaled.dot( inv(matmul(transpose(self.regressionDesignMatrix), self.regressionDesignMatrix).astype('float')) ).dot(transpose(targetFeaturesScaled) )))
+            pdfLikelihood = nct(loc=targetFeaturesScaled.dot(self.coefficients), scale=scale, nc = 0, df = self.regressionDesignMatrix.shape[0] - self.regressionDesignMatrix.shape[1])
+            # interval = pdfLikelihood.ppf(q = alpha)
+            # interval = alpha * targetSensitive
+            if targetFeaturesScaled.dot(self.coefficients) >= 0:
+                pCorrect = (pdfLikelihood.cdf( (1 + alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 - alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+            else:
+                pCorrect = (pdfLikelihood.cdf( (1 - alpha) * targetFeaturesScaled.dot(self.coefficients) ) - pdfLikelihood.cdf((1 + alpha) * targetFeaturesScaled.dot(self.coefficients)))[0]
+            # Stadler: pCorrect = pdfLikelihood.pdf(targetSensitive)[0]
+        return pCorrect[0]
 
 
 class RandForestAttack(AttributeInferenceAttack):

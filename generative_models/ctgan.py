@@ -1,4 +1,31 @@
 from pandas import DataFrame
+import os
+os.chdir('./synthetic_data_release-master')
+
+from utils.logging import LOGGER
+
+from generative_models.generative_model import GenerativeModel
+from sdv.single_table import CTGANSynthesizer
+from sdv.metadata import SingleTableMetadata
+# from ctgan import CTGAN
+
+from utils.datagen import load_local_data_as_df
+
+rawPop, metadata = load_local_data_as_df('./data/real_data_I_d20')
+
+metadata = SingleTableMetadata()
+metadata.detect_from_dataframe(data=rawPop)
+
+ctgan = CTGANSynthesizer( metadata,
+    enforce_rounding=False,
+    epochs=300,
+    verbose=True)
+
+ctgan.fit(data=rawPop)
+
+
+#-----------------------------
+from pandas import DataFrame
 
 from utils.logging import LOGGER
 

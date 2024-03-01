@@ -116,18 +116,20 @@ def load_results_inference(dirname, dpath):
                         resDF['Run'] = nr
                         resDF['SensitiveAttribute'] = sa
                         resDF['Dataset'] = dataset
-
                         resList.append(resDF)
-
     results = concat(resList)
 
     resAdv = []
     for gameParams, game in results.groupby(['Dataset', 'TargetID', 'SensitiveAttribute', 'Run']):
         rawRes = game.groupby(['TargetModel']).get_group('Raw')
         if all(game['SensitiveType'].isin([INTEGER, FLOAT])):
+            rawRes = rawRes.reset_index(drop = True)
             pCorrectRIn, pCorrectROut = get_probs_correct(rawRes['ProbCorrect'], rawRes['TargetPresence'])
-
+            # averaging with get_probs_correct()
+            MSErIn, MSErOut = get_probs_correct(rawRes['MSE'], rawRes['TargetPresence'])
+            
         elif all(game['SensitiveType'].isin([CATEGORICAL, ORDINAL])):
+            rawRes = rawRes.reset_index(drop = True)
             pCorrectRIn, pCorrectROut = get_accuracy(rawRes['AttackerGuess'], rawRes['TargetSecret'], rawRes['TargetPresence'])
 
         else:
@@ -138,24 +140,31 @@ def load_results_inference(dirname, dpath):
         for gm, gmRes in game.groupby(['TargetModel']):
             if gm != 'Raw':
                 if all(gmRes['SensitiveType'].isin([INTEGER, FLOAT])):
+                    gmRes = gmRes.reset_index(drop = True)
                     pCorrectSIn, pCorrectSOut = get_probs_correct(gmRes['ProbCorrect'], gmRes['TargetPresence'])
+                    MSEsIn, MSEsOut = get_probs_correct(gmRes['MSE'], gmRes['TargetPresence'])
+                    # mse = mean(gmRes['MSE'])
 
                 elif all(gmRes['SensitiveType'].isin([CATEGORICAL, ORDINAL])):
+                    gmRes = gmRes.reset_index(drop = True)
                     pCorrectSIn, pCorrectSOut = get_accuracy(gmRes['AttackerGuess'], gmRes['TargetSecret'], gmRes['TargetPresence'])
 
                 else:
                     raise ValueError('Unknown sensitive attribute type.')
 
+                oddsIn = get_ai_odds(pCorrectS=pCorrectSIn, pCorrectR=pCorrectRIn)
+                oddsOut = get_ai_odds(pCorrectS=pCorrectSOut, pCorrectR=pCorrectROut)
                 advS = get_ai_advantage(pCorrectSIn, pCorrectSOut)
 
 
-                resAdv.append(gameParams + (gm, pCorrectRIn, pCorrectROut, advR, pCorrectSIn, pCorrectSOut, advS))
+                resAdv.append(gameParams + (gm, pCorrectRIn, pCorrectROut, advR, pCorrectSIn, pCorrectSOut, advS, oddsIn, oddsOut, MSErIn, MSErOut, MSEsIn, MSEsOut))
 
+                
 
     resAdv = DataFrame(resAdv)
     resAdv.columns  =['Dataset', 'TargetID', 'SensitiveAttribute','Run', 'TargetModel',
                       'ProbCorrectRawIn', 'ProbCorrectRawOut', 'AdvantageRaw',
-                      'ProbCorrectSynIn', 'ProbCorrectSynOut', 'AdvantageSyn']
+                      'ProbCorrectSynIn', 'ProbCorrectSynOut', 'AdvantageSyn', 'OddsIn', 'OddsOut', 'MSErIn', 'MSErOut', 'MSEsIn', 'MSEsOut']
 
     resAdv['PrivacyGain'] = resAdv['AdvantageRaw'] - resAdv['AdvantageSyn']
 
@@ -241,16 +250,60 @@ def load_results_utility(dirname):
 
 
 ### Plotting
+## PG
 def plt_per_target_pg(results, models, resFilter=('FeatureSet', 'Naive')):
     """ Plot per record average privacy gain. """
     results = results[results[resFilter[0]] == resFilter[1]]
-
     fig, ax = plt.subplots(figsize=(10, 6))
     pointplot(results, 'TargetModel', 'PrivacyGain', 'TargetID', ax, models)
-
     ax.set_title(f'Attack on {resFilter[0]}: {resFilter[1]}', fontsize=FSIZELABELS)
     ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.3), ncol=5, title='TargetID')
     ax.set_ylabel('$\mathtt{PG}$', fontsize=FSIZELABELS)
+
+    return fig
+
+## P_S(hat_rs = rs | st = 1)
+def plt_per_target_prob(results, models, resFilter=('FeatureSet', 'Naive')):
+    """ Plot per record estimated probability of correct guess from synthetic data when target was in training. """
+    results = results[results[resFilter[0]] == resFilter[1]]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    pointplot(results, 'TargetModel', 'ProbCorrectSynIn', 'TargetID', ax, models)
+
+    ax.set_title(f'Attack on {resFilter[0]}: {resFilter[1]}', fontsize=FSIZELABELS)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45) 
+    ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.3), ncol=5, title='TargetID')
+    ax.set_ylabel('$\mathtt{ProbCorrectSynIn}$', fontsize=FSIZELABELS)
+
+    return fig
+
+## OddsIn
+def plt_per_target_oddsIn(results, models, resFilter=('FeatureSet', 'Naive')):
+    """ Plot per record average oddsIn. """
+    results = results[results[resFilter[0]] == resFilter[1]]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    pointplot(results, 'TargetModel', 'OddsIn', 'TargetID', ax, models)
+
+    ax.set_title(f'Attack on {resFilter[0]}: {resFilter[1]}', fontsize=FSIZELABELS)
+    ax.set_ylim([-0.05, 1.05])
+    # fig.yticks([0,0.2,0.4,0.6,0.8,1])
+    ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.3), ncol=5, title='TargetID')
+    ax.set_ylabel('$\mathtt{OddsIn}$', fontsize=FSIZELABELS)
+
+    return fig
+
+## OddsOut
+def plt_per_target_oddsOut(results, models, resFilter=('FeatureSet', 'Naive')):
+    """ Plot per record average oddsOut. """
+    results = results[results[resFilter[0]] == resFilter[1]]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    pointplot(results, 'TargetModel', 'OddsOut', 'TargetID', ax, models)
+
+    ax.set_title(f'Attack on {resFilter[0]}: {resFilter[1]}', fontsize=FSIZELABELS)
+    ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.3), ncol=5, title='TargetID')
+    ax.set_ylabel('$\mathtt{OddsOut}$', fontsize=FSIZELABELS)
 
     return fig
 
