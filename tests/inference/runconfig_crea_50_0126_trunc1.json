@@ -1,0 +1,22 @@
+{
+  "sensitiveAttributes": {
+    "crea": "LinReg"
+  },
+  "nIter": 10,
+  "sizeRawT": 500,
+  "sizeSynT": 500,
+  "nSynT": 50,
+  "nTargets": 0,
+  "alpha": 0.126,
+  "bootstrapSize": 500,
+  "Targets": ["ID45", "ID403", "ID820", "ID447", "ID123", "ID507", "ID589", "ID740"],
+  "generativeModels": {
+    "Cvine": [
+      [
+        "Cvine",
+        "parametric",
+        1
+      ]
+    ]
+  }
+}

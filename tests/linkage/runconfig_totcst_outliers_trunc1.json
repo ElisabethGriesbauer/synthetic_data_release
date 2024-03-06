@@ -1,0 +1,20 @@
+{
+  "nIter": 10,
+  "sizeRawA": 500,
+  "sizeRawT": 400,
+  "nShadows": 10,
+  "nSynA": 10,
+  "sizeSynT": 400,
+  "nSynT": 50,
+  "nTargets": 0,
+  "Targets": ["ID823", "ID31", "ID806", "ID41", "ID123", "ID507", "ID589", "ID740"],
+  "generativeModels": {
+    "Cvine": [
+      [
+        "Cvine",
+        "parametric",
+        1
+      ]
+    ]
+  }
+}
