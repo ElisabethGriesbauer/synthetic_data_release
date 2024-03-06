@@ -1,0 +1,166 @@
+{
+  "columns": [
+    {
+      "name": "age",
+      "type": "Float",
+      "min": 18.776,
+      "max": 99.198
+    },
+    {
+      "name": "slos",
+      "type": "Float",
+      "min": 3,
+      "max": 174
+    },
+    {
+      "name": "num.co",
+      "type": "Float",
+      "min": 0,
+      "max": 9
+    },
+    {
+      "name": "scoma",
+      "type": "Float",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "charges",
+      "type": "Float",
+      "min": 1684,
+      "max": 1045982
+    },
+    {
+      "name": "totcst",
+      "type": "Float",
+      "min": 0,
+      "max": 343305.25
+    },
+    {
+      "name": "totmcst",
+      "type": "Float",
+      "min": 0,
+      "max": 403864.75
+    },
+    {
+      "name": "sps",
+      "type": "Float",
+      "min": 1.2,
+      "max": 79.6875
+    },
+    {
+      "name": "aps",
+      "type": "Float",
+      "min": 2,
+      "max": 143
+    },
+    {
+      "name": "surv2m",
+      "type": "Float",
+      "min": 0,
+      "max": 0.9609
+    },
+    {
+      "name": "surv6m",
+      "type": "Float",
+      "min": 0,
+      "max": 0.9399
+    },
+    {
+      "name": "hday",
+      "type": "Float",
+      "min": 1,
+      "max": 115
+    },
+    {
+      "name": "prg2m",
+      "type": "Float",
+      "min": 0,
+      "max": 1
+    },
+    {
+      "name": "dnrday",
+      "type": "Float",
+      "min": -9,
+      "max": 174
+    },
+    {
+      "name": "meanbp",
+      "type": "Float",
+      "min": 0,
+      "max": 174
+    },
+    {
+      "name": "wblc",
+      "type": "Float",
+      "min": 0.05,
+      "max": 78.7969
+    },
+    {
+      "name": "hrt",
+      "type": "Float",
+      "min": 0,
+      "max": 232
+    },
+    {
+      "name": "resp",
+      "type": "Float",
+      "min": 0,
+      "max": 64
+    },
+    {
+      "name": "temp",
+      "type": "Float",
+      "min": 32,
+      "max": 41
+    },
+    {
+      "name": "pafi",
+      "type": "Float",
+      "min": 31,
+      "max": 714.25
+    },
+    {
+      "name": "alb",
+      "type": "Float",
+      "min": 1,
+      "max": 5.5996
+    },
+    {
+      "name": "bili",
+      "type": "Float",
+      "min": 0.1,
+      "max": 48.5
+    },
+    {
+      "name": "crea",
+      "type": "Float",
+      "min": 0.2,
+      "max": 18.3984
+    },
+    {
+      "name": "sod",
+      "type": "Float",
+      "min": 110,
+      "max": 161
+    },
+    {
+      "name": "ph",
+      "type": "Float",
+      "min": 7.0195,
+      "max": 7.6396
+    },
+    {
+      "name": "bun",
+      "type": "Float",
+      "min": 2,
+      "max": 178
+    },
+    {
+      "name": "Y",
+      "type": "Categorical",
+      "size": 2,
+      "i2s": ["0", "1"]
+    }
+  ]
+}
