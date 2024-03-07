@@ -1,46 +1,3 @@
-# ## tuning no. epochs and batch_size for real data I d20
-# ## (per epoch we have n/batch_size steps)
-# from pandas import DataFrame
-# import os
-# os.chdir('./synthetic_data_release-master')
-
-# from utils.logging import LOGGER
-
-# from generative_models.generative_model import GenerativeModel
-# from sdv.single_table import CTGANSynthesizer
-# from sdv.metadata import SingleTableMetadata
-# # from ctgan import CTGAN
-# import plotly.express as px
-# import pandas as pd
-
-# from utils.datagen import load_local_data_as_df
-
-# rawPop, metadata = load_local_data_as_df('./data/real_data_I_d20')
-
-# metadata = SingleTableMetadata()
-# metadata.detect_from_dataframe(data=rawPop)
-
-
-# ctgan = CTGANSynthesizer( metadata,
-#    enforce_rounding=False,
-#    epochs=500,
-#    batch_size = 100,
-#    verbose=True)
-
-# ctgan.fit(data=rawPop)
-# loss_values = ctgan._model.loss_values
-
-# loss_values_reformatted = pd.melt(
-#    loss_values,
-#    id_vars=['Epoch'],
-#    var_name='Loss Type'
-# )
-
-# fig = px.line(loss_values_reformatted, x="Epoch", y="value", color="Loss Type", title='Epoch vs. Loss')
-# fig.show()
-
-#-----------------------------
-
 from pandas import DataFrame, concat
 import random
 
@@ -117,14 +74,6 @@ class TVAE(GenerativeModel):
 
         self.synthesiser._model_kwargs = self.synthesiser._model_kwargs | {'verbose': self.verbose}
 
-        ## does not work because TVAE is initialized only in fit function of TVAESynthesiser
-        # self.synthesiser._model.set_random_state(123)
-        
-        ## not needed for tvae it seems
-        # if len(args) > 0:
-        #     # Merge the additional data frames using pandas.concat or another appropriate method
-        #     data = concat([data] + list(args), axis=0, ignore_index=True)
-
         LOGGER.debug(f'Start fitting {self.__class__.__name__} to data of shape {data.shape}...')
         self.synthesiser.fit(data)
 
@@ -157,7 +106,7 @@ class TVAE(GenerativeModel):
     def transform(self, X):
         # You might need to adjust this logic based on your specific generative model
         # return self.synthesiser.sample(num_rows=len(X), output_file_path=None)
-        randint = random.randint(1, 100000000000000000000)
+        # randint = random.randint(1, 100000000000000000000)
 
         ## use first alternative for MIA:
-        return self.synthesiser.sample(num_rows=len(X), output_file_path=f'./tmp_samples/temp{randint}')
+        return self.synthesiser.sample(num_rows=len(X), output_file_path=None)
