@@ -186,7 +186,7 @@ def main():
             synA, labelsSA = generate_mia_shadow_data(GenModel, target, rawA, runconfig['sizeRawT'], runconfig['sizeSynT'], runconfig['nShadows'], runconfig['nSynA'])
             
             # Train attack on shadow data
-            for Feature in [NaiveFeatureSet(GenModel.datatype)]: # , CorrelationsFeatureSet(GenModel.datatype, metadata),  HistogramFeatureSet(GenModel.datatype, metadata) , 
+            for Feature in [CorrelationsFeatureSet(GenModel.datatype, metadata)]: # , NaiveFeatureSet(GenModel.datatype),  HistogramFeatureSet(GenModel.datatype, metadata) , 
                 # import pdb
                 # pdb.set_trace()
                 Attack  = MIAttackClassifierRandomForest(metadata, Feature)

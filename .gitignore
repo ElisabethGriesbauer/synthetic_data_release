@@ -16,3 +16,8 @@ paper/*.blg
 paper/*.out
 syn_data_files/
 notebooks_local/
+conda_env.yml
+generative_models/CTGAN_tuning.py
+generative_models/TVAE_tuning.py
+generative_models/tuning_CTGAN.py
+reading_saving_privacy_attack_results.py
