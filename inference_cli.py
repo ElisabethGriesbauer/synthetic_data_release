@@ -6,7 +6,7 @@ import json
 
 from os import mkdir, path
 from numpy.random import choice, seed, randint
-from numpy import mean, std, append
+from numpy import mean, std, append, array_split
 from argparse import ArgumentParser
 # for checking regression coefficients
 from sklearn.preprocessing import StandardScaler
@@ -25,7 +25,8 @@ from generative_models.data_synthesiser import (IndependentHistogram,
                                                 PrivBayes, #added:
                                                 Rvine,
                                                 Cvine,
-                                                Rvinestar1)
+                                                Rvinestar1,
+                                                PrivPGD)
 from generative_models.pate_gan import PATEGAN
 from sanitisation_techniques.sanitiser import SanitiserNHS
 # from attack_models.reconstruction import LinRegAttack, RandForestAttack
@@ -132,6 +133,9 @@ def main():
             elif gm == 'Cvine':
                 for params in paramsList:
                     gmList.append(Cvine(metadata, *params))
+            elif gm == 'PrivPGD':
+                for params in paramsList:
+                    gmList.append(PrivPGD(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
             
@@ -193,10 +197,6 @@ def main():
             standBootstrapSample = standardize_before_AIA(bootstrap_sample, metadata, scaler)
             assert not standBootstrapSample.isna().any().any()
             
-            # scaler.fit(bootstrap_sample.drop('Y', axis = 1))
-            # standBootstrapSample = bootstrap_sample
-            # standBootstrapSample.iloc[:,:D] = DataFrame(scaler.transform(bootstrap_sample.drop('Y', axis = 1)), index = bootstrap_sample.index.values)
-            # count = 0
 
             for sa, Attack in attacks.items():
 
@@ -243,7 +243,14 @@ def main():
         for GenModel in gmList:
             LOGGER.info(f'Start: Evaluation for model {GenModel.__name__}...')
             GenModel.fit(rawTout)
-            synTwithoutTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+            
+            if "PrivPGD" in GenModel.__name__:
+                    sdata = GenModel.generate_samples(runconfig['sizeSynT'] * runconfig['nSynT'])
+                    synTwithoutTarget = array_split(sdata, runconfig['nSynT'])
+
+            else:
+                synTwithoutTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+            
             for sa, Attack in attacks.items():
 
                 for tid in targetIDs:
@@ -256,9 +263,7 @@ def main():
                 for syn in synTwithoutTarget:
                     standSyn = standardize_before_AIA(syn, metadata, scaler)
                     assert not standSyn.isna().any().any()        
-                    # scaler.fit(syn.drop('Y', axis = 1))
-                    # standSyn = syn
-                    # standSyn.iloc[:,:D] = DataFrame(scaler.transform(syn.drop('Y', axis = 1)))
+                    
                     Attack.train(standSyn)
                     
                     for tid in targetIDs:
@@ -283,7 +288,13 @@ def main():
                 rawTin = rawTout.append(target)
                 rawTin['Y'] = rawTin['Y'].astype(str)
                 GenModel.fit(rawTin)
-                synTwithTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+                
+                if "PrivPGD" in GenModel.__name__:
+                    sdata = GenModel.generate_samples(runconfig['sizeSynT'] * runconfig['nSynT'])
+                    synTwithTarget = array_split(sdata, runconfig['nSynT'])
+
+                else:
+                    synTwithTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
 
                 # for regression
                 target = standTargets.loc[[tid]]
@@ -295,9 +306,7 @@ def main():
                     for syn in synTwithTarget:
                         standSyn = standardize_before_AIA(syn, metadata, scaler)
                         assert  not standSyn.isna().any().any()
-                        # scaler.fit(syn.drop('Y', axis = 1))
-                        # standSyn = syn
-                        # standSyn.iloc[:,:D] = DataFrame(scaler.transform(syn.drop('Y', axis = 1)))
+                        
                         Attack.train(standSyn)
 
                         # for checking coefficients
