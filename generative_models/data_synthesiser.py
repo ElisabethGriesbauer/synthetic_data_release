@@ -2,7 +2,7 @@
 # Copyright <2018> <dataresponsibly.com>
 
 from numpy.random import seed, laplace, choice
-from pandas import DataFrame, merge
+from pandas import DataFrame, merge, to_numeric
 from itertools import product
 
 from generative_models.data_synthesiser_utils.datatypes.FloatAttribute import FloatAttribute
