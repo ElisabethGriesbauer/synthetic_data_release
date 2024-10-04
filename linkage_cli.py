@@ -3,11 +3,12 @@ Command-line interface for running privacy evaluation with respect to the risk o
 """
 
 import json
-# added:
+
 import pyvinecopulib as pv
 
 from os import mkdir, path
 from numpy.random import choice, seed
+from numpy import array_split
 from argparse import ArgumentParser
 from pandas import DataFrame
 
@@ -22,16 +23,17 @@ from feature_sets.bayes import CorrelationsFeatureSet
 
 from sanitisation_techniques.sanitiser import SanitiserNHS
 
-# added:
+
 from generative_models.ctganSDV import CTGAN
 from generative_models.tvae import TVAE
 from generative_models.pate_gan import PATEGAN
 from generative_models.data_synthesiser import (IndependentHistogram,
                                                 BayesianNet,
-                                                PrivBayes, #added:
+                                                PrivBayes, 
                                                 Rvine,
                                                 Cvine,
-                                                Rvinestar1)
+                                                Rvinestar1,
+                                                PrivPGD)
 
 from attack_models.mia_classifier import (MIAttackClassifierRandomForest,
                                           generate_mia_shadow_data,
@@ -130,6 +132,9 @@ def main():
             elif gm == 'Cvine':
                 for params in paramsList:
                     gmList.append(Cvine(metadata, *params))
+            elif gm == 'PrivPGD':
+                for params in paramsList:
+                    gmList.append(PrivPGD(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
 
@@ -214,7 +219,14 @@ def main():
             LOGGER.info(f'Start: Evaluation for model {GenModel.__name__}...')
             # Train a generative model
             GenModel.fit(rawTout)
-            synTwithoutTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+            
+            if "PrivPGD" in GenModel.__name__:
+                    sdata = GenModel.generate_samples(runconfig['sizeSynT'] * runconfig['nSynT'])
+                    synTwithoutTarget = array_split(sdata, runconfig['nSynT'])
+
+            else:
+                synTwithoutTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+
             synLabelsOut = [LABEL_OUT for _ in range(runconfig['nSynT'])]
 
             for tid in targetIDs:
@@ -224,7 +236,14 @@ def main():
 
                 rawTin = rawTout.append(target)
                 GenModel.fit(rawTin)
-                synTwithTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+                
+                if "PrivPGD" in GenModel.__name__:
+                    sdata = GenModel.generate_samples(runconfig['sizeSynT'] * runconfig['nSynT'])
+                    synTwithTarget = array_split(sdata, runconfig['nSynT'])
+
+                else:
+                    synTwithTarget = [GenModel.generate_samples(runconfig['sizeSynT']) for _ in range(runconfig['nSynT'])]
+
                 synLabelsIn = [LABEL_IN for _ in range(runconfig['nSynT'])]
 
                 synT = synTwithoutTarget + synTwithTarget
