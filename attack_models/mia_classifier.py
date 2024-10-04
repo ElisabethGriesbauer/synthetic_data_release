@@ -1,7 +1,7 @@
 """Parent class for launching a membership inference attack on the output of a generative model"""
 from pandas import DataFrame
 from pandas.api.types import CategoricalDtype
-from numpy import ndarray, concatenate, stack, array, round, zeros, arange
+from numpy import ndarray, concatenate, stack, array, round, zeros, arange, array_split
 
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
@@ -276,7 +276,13 @@ def worker_train_shadow(rawA, train_index, GenModel, target, sizeSyn, numCopies,
     GenModel.fit(rawAout)
 
     # Generate synthetic sample for data without target
-    synOut = [GenModel.generate_samples(sizeSyn) for _ in range(numCopies)]
+    if "PrivPGD" in GenModel.__name__:
+        sdata = GenModel.generate_samples(sizeSyn * numCopies)
+        synOut = array_split(sdata, numCopies)
+
+    else:
+        synOut = [GenModel.generate_samples(sizeSyn) for _ in range(numCopies)]
+
     labelsOut = [LABEL_OUT for _ in range(numCopies)]
 
     # Insert targets into training data
@@ -291,7 +297,13 @@ def worker_train_shadow(rawA, train_index, GenModel, target, sizeSyn, numCopies,
     GenModel.fit(rawAin)
 
     # Generate synthetic sample for data including target
-    synIn = [GenModel.generate_samples(sizeSyn) for _ in range(numCopies)]
+    if "PrivPGD" in GenModel.__name__:
+        sdata = GenModel.generate_samples(sizeSyn * numCopies)
+        synIn = array_split(sdata, numCopies)
+
+    else:
+        synIn = [GenModel.generate_samples(sizeSyn) for _ in range(numCopies)]  
+        
     labelsIn = [LABEL_IN for _ in range(numCopies)]
 
     syn = synOut + synIn
