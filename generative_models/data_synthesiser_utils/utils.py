@@ -3,7 +3,7 @@ from numpy import array, exp, isinf, full_like
 from numpy.random import choice
 from string import ascii_lowercase
 from itertools import combinations
-from pandas import Series, DataFrame
+from pandas import Series, DataFrame, cut
 from sklearn.metrics import mutual_info_score, normalized_mutual_info_score
 
 
@@ -138,3 +138,50 @@ def exponential_mechanism(epsilon, mutual_info_list, parents_pair_list, attr_to_
     mi_array = exp(mi_array)
     mi_array = normalize_given_distribution(mi_array)
     return mi_array
+
+
+
+def privpgd_discretize_data(data, except_for, num_bins):
+    
+    # Determine columns to discretize by excluding the specified columns
+    columns_to_discretize = [col for col in data.columns if col not in except_for]
+
+    # Discretize each specified column into the specified number of equally spaced bins
+    for column in columns_to_discretize:
+        if column in data.columns:
+            # Create equally spaced bins
+            data[column] = cut(data[column], bins=num_bins, labels=False)
+        else:
+            print(f"Warning: Column '{column}' not found in the CSV file.")
+    
+    return data
+
+
+
+def privpgd_revert_discretization(original_data, discretized_data, except_for, num_bins):
+    """
+    Reverts the discretization of specified columns in a CSV file using the original dataset.
+
+    :param original_data: Original dataframe with continuous data.
+    :param discretized_data: Dataframe with discretized data.
+    :param except_for: List of column names that were not discretized and should not be reverted.
+    :param num_bins: Number of bins used in the discretization process.
+    :return: DataFrame with reverted continuous values.
+    """
+
+    # Determine columns to revert by excluding the specified columns
+    columns_to_revert = [col for col in discretized_data.columns if col not in except_for]
+
+    # Revert discretization for each specified column
+    for column in columns_to_revert:
+        if column in discretized_data.columns:
+            min_val = original_data[column].min()
+            max_val = original_data[column].max()
+            bin_width = (max_val - min_val) / num_bins
+
+            # Calculate the center of each bin
+            discretized_data[column] = discretized_data[column].apply(lambda x: min_val + (x + 0.5) * bin_width)
+        else:
+            print(f"Warning: Column '{column}' not found in the discretized file.")
+
+    return discretized_data
