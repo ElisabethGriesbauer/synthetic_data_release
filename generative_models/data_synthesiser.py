@@ -813,7 +813,7 @@ class PrivPGD(GenerativeModel):
     def __init__(self, 
         metadata,
         savedir = './data', 
-        domain = './ synthetic_data_release/data/domain.json',
+        domain = './synthetic_data_release/data/domain.json',
         epsilon = 2.5,
         delta = 0.00001,
         iters = 1000,
