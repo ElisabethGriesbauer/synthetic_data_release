@@ -25,9 +25,8 @@ import os
 import json
 from datetime import datetime
 
-# specify path to privpgd conda env:
-path_to_conda_env_privpgd = '/Users/elismg/miniconda3/envs/privpgd'
-
+# specify path to privpgd conda env
+conda_env_privpgd = '/Users/elismg/miniconda3/envs/privpgd'
 
 
 
@@ -813,7 +812,7 @@ class PrivPGD(GenerativeModel):
     def __init__(self, 
         metadata,
         savedir = './data', 
-        domain = './synthetic_data_release/data/domain.json',
+        domain = './data/domain.json',
         epsilon = 2.5,
         delta = 0.00001,
         iters = 1000,
@@ -904,7 +903,7 @@ class PrivPGD(GenerativeModel):
         """
         try:
             # it is necessary to give full path to conda env
-            command_string = f"conda run -p {path_to_conda_env_privpgd} python synthetic_data_release/private-pgd/examples/privpgd.py --savedir {self.savedir} --train_dataset {self.discretized_filename} --domain {self.domain} --epsilon {self.epsilon} --delta {self.delta} --iters {self.iters} --n_particles {nsamples} --lr {self.lr} --scheduler_step {self.scheduler_step} --scheduler_gamma {self.scheduler_gamma} --num_projections {self.num_projections} --scale_reg {self.scale_reg} --p_mask {self.p_mask} --batch_size {self.batch_size}"
+            command_string = f"conda run -p {conda_env_privpgd} python ./private-pgd/examples/privpgd.py --savedir {self.savedir} --train_dataset {self.discretized_filename} --domain {self.domain} --epsilon {self.epsilon} --delta {self.delta} --iters {self.iters} --n_particles {nsamples} --lr {self.lr} --scheduler_step {self.scheduler_step} --scheduler_gamma {self.scheduler_gamma} --num_projections {self.num_projections} --scale_reg {self.scale_reg} --p_mask {self.p_mask} --batch_size {self.batch_size}"
 
             with open("output.txt", "w") as f: 
                 process = subprocess.run(command_string, shell = True, text=True, stdout=f, stderr=f)
