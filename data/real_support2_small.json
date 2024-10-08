@@ -1,16 +1,46 @@
 {
   "columns": [
     {
-      "name": "age",
+      "name": "totcst",
       "type": "Float",
-      "min": 18.776,
-      "max": 99.198
+      "min": 0,
+      "max": 343305.25
+    },
+    {
+      "name": "crea",
+      "type": "Float",
+      "min": 0.2,
+      "max": 18.3984
+    },
+    {
+      "name": "totmcst",
+      "type": "Float",
+      "min": 0,
+      "max": 403864.75
+    },
+    {
+      "name": "charges",
+      "type": "Float",
+      "min": 1684,
+      "max": 1045982
     },
     {
       "name": "slos",
       "type": "Float",
       "min": 3,
       "max": 174
+    },
+    {
+      "name": "bun",
+      "type": "Float",
+      "min": 2,
+      "max": 178
+    },
+    {
+      "name": "age",
+      "type": "Float",
+      "min": 18.776,
+      "max": 99.198
     },
     {
       "name": "num.co",
@@ -23,24 +53,6 @@
       "type": "Float",
       "min": 0,
       "max": 100
-    },
-    {
-      "name": "charges",
-      "type": "Float",
-      "min": 1684,
-      "max": 1045982
-    },
-    {
-      "name": "totcst",
-      "type": "Float",
-      "min": 0,
-      "max": 343305.25
-    },
-    {
-      "name": "totmcst",
-      "type": "Float",
-      "min": 0,
-      "max": 403864.75
     },
     {
       "name": "sps",
@@ -133,12 +145,6 @@
       "max": 48.5
     },
     {
-      "name": "crea",
-      "type": "Float",
-      "min": 0.2,
-      "max": 18.3984
-    },
-    {
       "name": "sod",
       "type": "Float",
       "min": 110,
@@ -149,12 +155,6 @@
       "type": "Float",
       "min": 7.0195,
       "max": 7.6396
-    },
-    {
-      "name": "bun",
-      "type": "Float",
-      "min": 2,
-      "max": 178
     },
     {
       "name": "Y",
