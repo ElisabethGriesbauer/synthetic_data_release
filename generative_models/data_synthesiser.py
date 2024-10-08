@@ -867,14 +867,16 @@ class PrivPGD(GenerativeModel):
         self.DataDescriber.describe(data)
 
         real_data = DataFrame(data)
+        rdata = real_data.copy(deep=True)
+        rdata2 = real_data.copy(deep=True)
         
-        self.real_data = real_data.copy(deep=True) 
+        self.real_data = rdata
 
         # infer categricals from meta data
         self.cols_to_exclude = [key for key, value in self.metadata.items() if value['type'] == 'Categorical']
         
         # set num_bins to default value 32 as in the paper
-        self.disc_real_data = privpgd_discretize_data(data = real_data, except_for = self.cols_to_exclude, num_bins = 32)
+        self.disc_real_data = privpgd_discretize_data(data = rdata2, except_for = self.cols_to_exclude, num_bins = 32)
 
         # Add a unique timestamp to the CSV filename
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f")
