@@ -26,7 +26,7 @@ import json
 from datetime import datetime
 
 # specify path to privpgd conda env
-conda_env_privpgd = '/Users/elismg/miniconda3/envs/privpgd'
+conda_env_privpgd = '/Users/user/miniconda3/envs/privpgd'
 
 
 
