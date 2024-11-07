@@ -1,10 +1,11 @@
 from math import log, ceil
-from numpy import array, exp, isinf, full_like
+from numpy import array, exp, isinf, full_like, linspace
 from numpy.random import choice
 from string import ascii_lowercase
 from itertools import combinations
 from pandas import Series, DataFrame, cut
 from sklearn.metrics import mutual_info_score, normalized_mutual_info_score
+import json
 
 
 def mutual_information(labels_x: Series, labels_y: DataFrame):
@@ -141,7 +142,14 @@ def exponential_mechanism(epsilon, mutual_info_list, parents_pair_list, attr_to_
 
 
 
-def privpgd_discretize_data(data, except_for, num_bins):
+def privpgd_discretize_data(data, except_for, num_bins, json_filename='./data/ranges.json'):
+
+    # Load JSON metadata
+    with open(json_filename, 'r') as file:
+        metadata = json.load(file)
+    
+    # Create a dictionary to easily retrieve metadata for each column
+    column_metadata = {col['name']: col for col in metadata['columns']}
     
     # Determine columns to discretize by excluding the specified columns
     columns_to_discretize = [col for col in data.columns if col not in except_for]
@@ -149,8 +157,18 @@ def privpgd_discretize_data(data, except_for, num_bins):
     # Discretize each specified column into the specified number of equally spaced bins
     for column in columns_to_discretize:
         if column in data.columns:
+            # Fetch min and max values from the metadata
+            min_val = column_metadata[column]['min']
+            max_val = column_metadata[column]['max']
+
+            # Clip the column to the range specified by min and max
+            clipped_series = data[column].clip(lower=min_val, upper=max_val)
+
+            # Calculate bin edges
+            bin_edges = linspace(min_val, max_val, num_bins + 1)
+
             # Create equally spaced bins
-            data[column] = cut(data[column], bins=num_bins, labels=False)
+            data[column] = cut(clipped_series, bins=bin_edges, labels=False, include_lowest=True)
         else:
             print(f"Warning: Column '{column}' not found in the CSV file.")
     
@@ -158,7 +176,7 @@ def privpgd_discretize_data(data, except_for, num_bins):
 
 
 
-def privpgd_revert_discretization(original_data, discretized_data, except_for, num_bins):
+def privpgd_revert_discretization(original_data, discretized_data, except_for, num_bins, json_filename='./data/ranges.json'):
     """
     Reverts the discretization of specified columns in a CSV file using the original dataset.
 
@@ -166,8 +184,16 @@ def privpgd_revert_discretization(original_data, discretized_data, except_for, n
     :param discretized_data: Dataframe with discretized data.
     :param except_for: List of column names that were not discretized and should not be reverted.
     :param num_bins: Number of bins used in the discretization process.
+    :param json_filename: File name of json file containing the covariates ranges.
     :return: DataFrame with reverted continuous values.
     """
+
+    # Load JSON metadata
+    with open(json_filename, 'r') as file:
+        metadata = json.load(file)
+    
+    # Create a dictionary to easily retrieve metadata for each column
+    column_metadata = {col['name']: col for col in metadata['columns']}
 
     # Determine columns to revert by excluding the specified columns
     columns_to_revert = [col for col in discretized_data.columns if col not in except_for]
@@ -175,8 +201,10 @@ def privpgd_revert_discretization(original_data, discretized_data, except_for, n
     # Revert discretization for each specified column
     for column in columns_to_revert:
         if column in discretized_data.columns:
-            min_val = original_data[column].min()
-            max_val = original_data[column].max()
+            # Fetch min and max values from the metadata
+            min_val = column_metadata[column]['min']
+            max_val = column_metadata[column]['max']
+
             bin_width = (max_val - min_val) / num_bins
 
             # Calculate the center of each bin
