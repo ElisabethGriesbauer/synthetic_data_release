@@ -4,43 +4,43 @@
       "name": "totcst",
       "type": "Float",
       "min": 0,
-      "max": 343305.25
+      "max": 500000
     },
     {
       "name": "crea",
       "type": "Float",
-      "min": 0.2,
-      "max": 18.3984
+      "min": 0,
+      "max": 13
     },
     {
       "name": "totmcst",
       "type": "Float",
       "min": 0,
-      "max": 403864.75
+      "max": 500000
     },
     {
       "name": "charges",
       "type": "Float",
       "min": 1684,
-      "max": 1045982
+      "max": 500000
     },
     {
       "name": "slos",
       "type": "Float",
-      "min": 3,
-      "max": 174
+      "min": 0,
+      "max": 180
     },
     {
       "name": "bun",
       "type": "Float",
-      "min": 2,
-      "max": 178
+      "min": 0,
+      "max": 120
     },
     {
       "name": "age",
       "type": "Float",
-      "min": 18.776,
-      "max": 99.198
+      "min": 18,
+      "max": 115
     },
     {
       "name": "num.co",
@@ -52,37 +52,37 @@
       "name": "scoma",
       "type": "Float",
       "min": 0,
-      "max": 100
+      "max": 15
     },
     {
       "name": "sps",
       "type": "Float",
-      "min": 1.2,
-      "max": 79.6875
+      "min": 0,
+      "max": 163
     },
     {
       "name": "aps",
       "type": "Float",
-      "min": 2,
-      "max": 143
+      "min": 0,
+      "max": 299
     },
     {
       "name": "surv2m",
       "type": "Float",
       "min": 0,
-      "max": 0.9609
+      "max": 1
     },
     {
       "name": "surv6m",
       "type": "Float",
       "min": 0,
-      "max": 0.9399
+      "max": 1
     },
     {
       "name": "hday",
       "type": "Float",
-      "min": 1,
-      "max": 115
+      "min": 0,
+      "max": 180
     },
     {
       "name": "prg2m",
@@ -93,68 +93,68 @@
     {
       "name": "dnrday",
       "type": "Float",
-      "min": -9,
-      "max": 174
+      "min": -30,
+      "max": 180
     },
     {
       "name": "meanbp",
       "type": "Float",
       "min": 0,
-      "max": 174
+      "max": 180
     },
     {
       "name": "wblc",
       "type": "Float",
-      "min": 0.05,
-      "max": 78.7969
+      "min": 0,
+      "max": 100
     },
     {
       "name": "hrt",
       "type": "Float",
       "min": 0,
-      "max": 232
+      "max": 200
     },
     {
       "name": "resp",
       "type": "Float",
       "min": 0,
-      "max": 64
+      "max": 40
     },
     {
       "name": "temp",
       "type": "Float",
-      "min": 32,
-      "max": 41
+      "min": 27,
+      "max": 42
     },
     {
       "name": "pafi",
       "type": "Float",
-      "min": 31,
-      "max": 714.25
+      "min": 0,
+      "max": 500
     },
     {
       "name": "alb",
       "type": "Float",
-      "min": 1,
-      "max": 5.5996
+      "min": 0,
+      "max": 5
     },
     {
       "name": "bili",
       "type": "Float",
-      "min": 0.1,
-      "max": 48.5
+      "min": 0,
+      "max": 21
     },
     {
       "name": "sod",
       "type": "Float",
-      "min": 110,
-      "max": 161
+      "min": 120,
+      "max": 160
     },
     {
       "name": "ph",
       "type": "Float",
-      "min": 7.0195,
-      "max": 7.6396
+      "min": 6.9,
+      "max": 7.8
     },
     {
       "name": "Y",
